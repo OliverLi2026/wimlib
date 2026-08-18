@@ -285,8 +285,7 @@ jobs:
     needs: windows-build
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 必须赋予写入权限以创建/更新 Release
-    # 限制为：只有在往主分支（如 main 或 master）push 时才触发
+      contents: write
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - name: Download all workflow artifacts
@@ -297,21 +296,17 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p final-release
-          # 遍历下载下来的所有目录
-          for dir in release-artifacts/*/; do
-            if [ -d "$dir" ]; then
-              # 在每个 Artifact 文件夹中查找 .zip 或 .tar.gz 文件
-              find "$dir" -maxdepth 1 \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp -v {} final-release/ \;
-            fi
-          done
+          # 使用更严谨的递归查找，把所有下载下来的子目录中的 .zip 和 .tar.gz 文件全部复制到 final-release 根目录下
+          find release-artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp -v {} final-release/ \;
+          echo "=== 检查最终打包目录 ==="
           ls -la final-release/
 
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: final-release/*
-          tag_name: latest            # 固定使用名为 latest 的标签
-          name: "Latest Development Build" # Release 显示的标题
+          tag_name: latest
+          name: "Latest Development Build"
           body: "自动构建的最新开发版，每次推送代码后自动更新。"
-          prerelease: true            # 标记为预发布版
-          allow_updates: true         # 允许覆盖更新里面的文件
+          prerelease: true
+          # 注：已移除不支持的 allow_updates 参数，该插件默认支持通过相同 tag 覆盖更新
