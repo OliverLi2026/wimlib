@@ -297,16 +297,14 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p final-release
-          cd release-artifacts
-          for dir in windows-*-bin/; do
+          # 遍历下载下来的所有目录
+          for dir in release-artifacts/*/; do
             if [ -d "$dir" ]; then
-              cd "$dir"
-              cp -v wimlib-*.tar.gz ../../final-release/ 2>/dev/null || true
-              cp -v wimlib-*.zip ../../final-release/ 2>/dev/null || true
-              cd ..
+              # 在每个 Artifact 文件夹中查找 .zip 或 .tar.gz 文件
+              find "$dir" -maxdepth 1 \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp -v {} final-release/ \;
             fi
           done
-          ls -la ../final-release
+          ls -la final-release/
 
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v3
