@@ -285,8 +285,9 @@ jobs:
     needs: windows-build
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 必须赋予写入权限以创建 Release
-    if: startsWith(github.ref, 'refs/tags/') # 只有当推送以 v 开头或任意 Tag 时才触发
+      contents: write # 必须赋予写入权限以创建/更新 Release
+    # 限制为：只有在往主分支（如 main 或 master）push 时才触发
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - name: Download all workflow artifacts
         uses: actions/download-artifact@v4
@@ -296,12 +297,10 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p final-release
-          # 将各个 msystem 目录下的 wimlib 压缩包重新打包或重命名并集中存放
           cd release-artifacts
           for dir in windows-*-bin/; do
             if [ -d "$dir" ]; then
               cd "$dir"
-              # 寻找内部的压缩包并复制出来
               cp -v wimlib-*.tar.gz ../../final-release/ 2>/dev/null || true
               cp -v wimlib-*.zip ../../final-release/ 2>/dev/null || true
               cd ..
@@ -309,8 +308,12 @@ jobs:
           done
           ls -la ../final-release
 
-      - name: Create GitHub Release and Upload Assets
+      - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: final-release/*
-          generate_release_notes: true
+          tag_name: latest            # 固定使用名为 latest 的标签
+          name: "Latest Development Build" # Release 显示的标题
+          body: "自动构建的最新开发版，每次推送代码后自动更新。"
+          prerelease: true            # 标记为预发布版
+          allow_updates: true         # 允许覆盖更新里面的文件
