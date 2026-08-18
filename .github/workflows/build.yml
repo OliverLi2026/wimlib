@@ -1,0 +1,55 @@
+name: Build wimlib for Windows
+
+on:
+  push:
+    branches: [ master, main ]
+  pull_request:
+    branches: [ master, main ]
+
+jobs:
+  build-windows:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. 检出代码
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. 安装 MinGW-w64 交叉编译工具链及相关依赖
+    - name: Install MinGW and dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y autoconf automake libtool pkgconf mingw-w64
+
+    # 3. 运行 bootstrap 生成配置脚本
+    - name: Bootstrap
+      run: ./bootstrap
+
+    # 4. 使用 MinGW 交叉编译 64 位 Windows 版本
+    - name: Configure for Windows 64-bit
+      run: |
+        mkdir build-win64
+        cd build-win64
+        ../configure --host=x86_64-w64-mingw32 --prefix=/usr/x86_64-w64-mingw32
+
+    # 5. 编译
+    - name: Make
+      run: |
+        cd build-win64
+        make -j$(nproc)
+
+    # 6. 打包编译好的 Windows 文件 (可选，方便下载)
+    - name: Package Windows binaries
+      run: |
+        mkdir wimlib-win64-bin
+        # 复制生成的 exe 和 dll 到打包目录
+        cp build-win64/imagex/wimlib-imagex.exe wimlib-win64-bin/
+        cp build-win64/.libs/*.dll wimlib-win64-bin/
+        tar -czvf wimlib-win64.tar.gz wimlib-win64-bin
+
+    # 7. 上传构建好的 Artifacts（可以在 GitHub 网页端下载）
+    - name: Upload Windows Binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: wimlib-windows-x86_64
+        path: wimlib-win64.tar.gz
