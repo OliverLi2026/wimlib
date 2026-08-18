@@ -167,6 +167,7 @@ jobs:
       with:
         name: windows-${{matrix.msystem}}-bin
         path: wimlib-*-bin
+        include-hidden-files: true
 
   win32-test-imagex-capture-and-apply:
     name: Run win32-test-imagex-capture_and_apply.bat
@@ -278,3 +279,38 @@ jobs:
     - run: CFLAGS="$DEF_CFLAGS" ./tools/windows-build.sh -- --enable-test-support
     - run: make tests/wlfuzz.exe
     - run: TMPDIR=$PWD/tmp.wlfuzz tests/wlfuzz 120
+
+  # 新增的自动发布 Release 任务
+  create-release:
+    needs: windows-build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 必须赋予写入权限以创建 Release
+    if: startsWith(github.ref, 'refs/tags/') # 只有当推送以 v 开头或任意 Tag 时才触发
+    steps:
+      - name: Download all workflow artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Prepare release files
+        run: |
+          mkdir -p final-release
+          # 将各个 msystem 目录下的 wimlib 压缩包重新打包或重命名并集中存放
+          cd release-artifacts
+          for dir in windows-*-bin/; do
+            if [ -d "$dir" ]; then
+              cd "$dir"
+              # 寻找内部的压缩包并复制出来
+              cp -v wimlib-*.tar.gz ../../final-release/ 2>/dev/null || true
+              cp -v wimlib-*.zip ../../final-release/ 2>/dev/null || true
+              cd ..
+            fi
+          done
+          ls -la ../final-release
+
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v3
+        with:
+          files: final-release/*
+          generate_release_notes: true
