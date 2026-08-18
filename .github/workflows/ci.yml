@@ -297,16 +297,27 @@ jobs:
         run: |
           mkdir -p final-release
           cd release-artifacts
-          # 遍历下载下来的每一个 bin 文件夹，并把它打包成 .tar.gz 压缩包
+          
+          # 遍历下载下来的每一个 bin 文件夹
           for dir in windows-*-bin/; do
             if [ -d "$dir" ]; then
-              # 去掉末尾的斜杠作为压缩包名
               pkg_name="${dir%/}"
-              tar -czvf "../final-release/${pkg_name}.tar.gz" "$dir"
+              
+              # 判断如果是 MINGW32 或 MINGW64，则打包成 .zip 格式
+              if [[ "$pkg_name" == *"MINGW32"* || "$pkg_name" == *"MINGW64"* ]]; then
+                echo "打包 $pkg_name 为 ZIP 格式..."
+                # 在 Linux 下使用 zip 命令打包目录（需确保安装，ubuntu-latest 自带 zip）
+                zip -r "../final-release/${pkg_name}.zip" "$dir"
+              else
+                # 其他的（如 CLANG64, CLANGARM64）保持 .tar.gz 格式
+                echo "打包 $pkg_name 为 TAR.GZ 格式..."
+                tar -czvf "../final-release/${pkg_name}.tar.gz" "$dir"
+              fi
             fi
           done
           cd ..
-          echo "=== 检查最终打包好的压缩包 ==="
+          
+          echo "=== 检查最终打包好的文件 ==="
           ls -la final-release/
 
       - name: Create or Update GitHub Release
@@ -317,3 +328,5 @@ jobs:
           name: "Latest Development Build"
           body: "自动构建的最新开发版，每次推送代码后自动更新。"
           prerelease: true
+          # 核心改动：每次上传前，自动清理掉 Release 中旧的同名资产，防止越积越多
+          remove_files_with_matching_pattern: true
