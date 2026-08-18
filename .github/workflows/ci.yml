@@ -291,14 +291,12 @@ jobs:
       - name: Download all workflow artifacts
         uses: actions/download-artifact@v4
         with:
-          path: release-artifacts
+          path: final-release
+          merge-multiple: true # 核心改动：自动把所有 Windows 编译产物合并下载到 final-release 目录下
 
-      - name: Prepare release files
+      - name: Check files
         run: |
-          mkdir -p final-release
-          # 使用更严谨的递归查找，把所有下载下来的子目录中的 .zip 和 .tar.gz 文件全部复制到 final-release 根目录下
-          find release-artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp -v {} final-release/ \;
-          echo "=== 检查最终打包目录 ==="
+          echo "=== 检查合并后的文件 ==="
           ls -la final-release/
 
       - name: Create or Update GitHub Release
@@ -309,4 +307,3 @@ jobs:
           name: "Latest Development Build"
           body: "自动构建的最新开发版，每次推送代码后自动更新。"
           prerelease: true
-          # 注：已移除不支持的 allow_updates 参数，该插件默认支持通过相同 tag 覆盖更新
