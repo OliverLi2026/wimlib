@@ -296,9 +296,17 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p final-release
-          # 递归深入所有下载下来的子文件夹，寻找所有 .zip 和 .tar.gz 文件并复制到 final-release 根目录
-          find release-artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp -v {} final-release/ \;
-          echo "=== 检查最终收集到的文件 ==="
+          cd release-artifacts
+          # 遍历下载下来的每一个 bin 文件夹，并把它打包成 .tar.gz 压缩包
+          for dir in windows-*-bin/; do
+            if [ -d "$dir" ]; then
+              # 去掉末尾的斜杠作为压缩包名
+              pkg_name="${dir%/}"
+              tar -czvf "../final-release/${pkg_name}.tar.gz" "$dir"
+            fi
+          done
+          cd ..
+          echo "=== 检查最终打包好的压缩包 ==="
           ls -la final-release/
 
       - name: Create or Update GitHub Release
