@@ -51,7 +51,7 @@ jobs:
         with:
           path: release-artifacts
 
-      - name: Prepare release files
+      - name: Prepare release files and generate SHA512
         run: |
           mkdir -p final-release
           cd release-artifacts
@@ -71,7 +71,12 @@ jobs:
           done
           cd ..
           
-          echo "=== 检查最终打包好的文件 ==="
+          # 进入最终发布目录，计算所有文件的 sha512 并写入 sha512sums.txt
+          cd final-release
+          sha512sum * > sha512sums.txt
+          cd ..
+          
+          echo "=== 检查最终打包好的文件及校验码 ==="
           ls -la final-release/
 
       - name: Create or Update GitHub Release
@@ -80,6 +85,6 @@ jobs:
           files: final-release/*
           tag_name: latest
           name: "Latest Development Build"
-          body: "自动构建的最新开发版，每次推送代码后自动更新。"
+          body: "自动构建的最新开发版，每次推送代码后自动更新（内含 SHA512 校验文件）。"
           prerelease: true
           remove_files_with_matching_pattern: true
