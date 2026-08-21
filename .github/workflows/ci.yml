@@ -52,53 +52,55 @@ jobs:
       id-token: write
       attestations: write
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
+      - uses: actions/checkout@v4
 
-    - name: Download all workflow artifacts
-      uses: actions/download-artifact@v4
-      with:
-        path: release-artifacts
+      - name: Download all workflow artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
 
-    - name: Prepare release files and generate SHA512
-      run: |
-        mkdir -p final-release
-        cd release-artifacts
-        
-        for dir in windows-*-bin/; do
-          if [ -d "$dir" ]; then
-            pkg_name="${dir%/}"
-            
-            if [[ "$pkg_name" == *"MINGW32"* || "$pkg_name" == *"MINGW64"* ]]; then
-              echo "打包 $pkg_name 为 ZIP 格式..."
-              zip -r "../final-release/${pkg_name}.zip" "$dir"
-            else
-              echo "打包 $pkg_name 为 TAR.GZ 格式..."
-              tar -czvf "../final-release/${pkg_name}.tar.gz" "$dir"
+      - name: Prepare release files and generate SHA512
+        run: |
+          mkdir -p final-release
+          cd release-artifacts
+          
+          for dir in windows-*-bin/; do
+            if [ -d "$dir" ]; then
+              pkg_name="${dir%/}"
+              if [[ "$pkg_name" == *"MINGW32"* || "$pkg_name" == *"MINGW64"* ]]; then
+                zip -r "../final-release/${pkg_name}.zip" "$dir"
+              else
+                tar -czvf "../final-release/${pkg_name}.tar.gz" "$dir"
+              fi
             fi
-          fi
-        done
-        cd ..
-        
-        cd final-release
-        sha512sum * > sha512sums.txt
-        cd ..
-        
-        echo "=== 检查最终打包好的文件及校验码 ==="
-        ls -la final-release/
+          done
+          cd ..
+          
+          cd final-release
+          sha512sum * > sha512sums.txt
+          cd ..
+          
+          echo "=== 待打包文件列表 ==="
+          ls -lh final-release/
 
-    - name: Generate Artifact Attestations
-      uses: actions/attest-build-provenance@v1
-      with:
-        subject-path: 'final-release/*'
+      # 生成 Attestation 并把对应的 JSON Bundle 保存到 final-release 目录下
+      - name: Generate Artifact Attestations
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'final-release/*'
+          bundle-path: 'final-release/attestation-bundle.json'
 
-    - name: Upload to GitHub Release
-      uses: softprops/action-gh-release@v3
-      with:
-        files: final-release/*
-        tag_name: ${{ github.ref_name }}
-        name: "Release ${{ github.ref_name }}"
-        body: "自动构建的版本，内含 SHA512 校验文件与 GitHub 官方安全签名认证 (Artifact Attestations)。"
-        prerelease: true
-        overwrite_files: true
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v3
+        with:
+          # 通过通配符把 zip、tar.gz、sha512sums.txt 以及刚刚生成的 attestation-bundle.json 全部上传
+          files: |
+            final-release/*.zip
+            final-release/*.tar.gz
+            final-release/sha512sums.txt
+            final-release/attestation-bundle.json
+          tag_name: ${{ github.ref_name }}
+          name: "Release ${{ github.ref_name }}"
+          body: "自动构建的版本，内含所有编译产物、SHA512 校验文件以及离线安全签名证明 (attestation-bundle.json)。"
+          prerelease: true
+          overwrite_files: true
