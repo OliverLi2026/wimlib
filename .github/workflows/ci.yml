@@ -1,10 +1,9 @@
 name: CI
 
-# 修改触发条件：当推送形如 v1.0.0 的标签时触发
 on:
   push:
-  - tags:
-    - 'v*'
+    tags:
+      - 'v*'
 
 env:
   DEF_CFLAGS: -O2 -g -Wall -Werror
@@ -27,7 +26,7 @@ jobs:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - uses: msys2/setup-msys2@v2
+    - uses: actions/setup-msys2@v2
       with:
         msystem: ${{matrix.msystem}}
         update: true
@@ -53,49 +52,53 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-      - name: Download all workflow artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: release-artifacts
+    - name: Download all workflow artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-artifacts
 
-      - name: Prepare release files and generate SHA512
-        run: |
-          mkdir -p final-release
-          cd release-artifacts
-          
-          for dir in windows-*-bin/; do
-            if [ -d "$dir" ]; then
-              pkg_name="${dir%/}"
-              
-              if [[ "$pkg_name" == *"MINGW32"* || "$pkg_name" == *"MINGW64"* ]]; then
-                echo "打包 $pkg_name 为 ZIP 格式..."
-                zip -r "../final-release/${pkg_name}.zip" "$dir"
-              else
-                echo "打包 $pkg_name 为 TAR.GZ 格式..."
-                tar -czvf "../final-release/${pkg_name}.tar.gz" "$dir"
-              fi
+    - name: Prepare release files and generate SHA512
+      run: |
+        mkdir -p final-release
+        cd release-artifacts
+        
+        for dir in windows-*-bin/; do
+          if [ -d "$dir" ]; then
+            pkg_name="${dir%/}"
+            
+            if [[ "$pkg_name" == *"MINGW32"* || "$pkg_name" == *"MINGW64"* ]]; then
+              echo "打包 $pkg_name 为 ZIP 格式..."
+              zip -r "../final-release/${pkg_name}.zip" "$dir"
+            else
+              echo "打包 $pkg_name 为 TAR.GZ 格式..."
+              tar -czvf "../final-release/${pkg_name}.tar.gz" "$dir"
             fi
-          done
-          cd ..
-          
-          cd final-release
-          sha512sum * > sha512sums.txt
-          cd ..
-          
-          echo "=== 检查最终打包好的文件及校验码 ==="
-          ls -la final-release/
+          fi
+        done
+        cd ..
+        
+        cd final-release
+        sha512sum * > sha512sums.txt
+        cd ..
+        
+        echo "=== 检查最终打包好的文件及校验码 ==="
+        ls -la final-release/
 
-      # 1. 先生成构建来历安全签名
-      - name: Generate Artifact Attestations
-        uses: actions/attest-build-provenance@v1
-        with:
-          subject-path: 'final-release/*'
+    - name: Generate Artifact Attestations
+      uses: actions/attest-build-provenance@v1
+      with:
+        subject-path: 'final-release/*'
 
-      # 2. 上传打包文件到对应的 GitHub Release 中
-      - name: Upload Release Assets
-        uses: softprops/action-gh-release@v3
-        with:
-          files: final-release/*
-          prerelease: true
+    - name: Upload to GitHub Release
+      uses: softprops/action-gh-release@v3
+      with:
+        files: final-release/*
+        tag_name: ${{ github.ref_name }}
+        name: "Release ${{ github.ref_name }}"
+        body: "自动构建的版本，内含 SHA512 校验文件与 GitHub 官方安全签名认证 (Artifact Attestations)。"
+        prerelease: true
+        overwrite_files: true
