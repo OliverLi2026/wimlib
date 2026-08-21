@@ -42,8 +42,11 @@ jobs:
   create-release:
     needs: windows-build
     runs-on: ubuntu-latest
+    # 必须赋予写内容、id-token 以及 attestations 权限
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
       - name: Download all workflow artifacts
@@ -79,12 +82,20 @@ jobs:
           echo "=== 检查最终打包好的文件及校验码 ==="
           ls -la final-release/
 
+      # ----------------------------------------------------
+      # 新增：为所有生成的压缩包生成官方构建来历证明（Artifact Attestations）
+      # ----------------------------------------------------
+      - name: Generate Artifact Attestations
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'final-release/*'
+
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: final-release/*
           tag_name: latest
           name: "Latest Development Build"
-          body: "自动构建的最新开发版，每次推送代码后自动更新（内含 SHA512 校验文件）。"
+          body: "自动构建的最新开发版，每次推送代码后自动更新（内含 SHA512 校验文件与 GitHub 官方安全签名认证）。"
           prerelease: true
           remove_files_with_matching_pattern: true
