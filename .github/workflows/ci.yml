@@ -42,7 +42,6 @@ jobs:
   create-release:
     needs: windows-build
     runs-on: ubuntu-latest
-    # 必须赋予写内容、id-token 以及 attestations 权限
     permissions:
       contents: write
       id-token: write
@@ -82,20 +81,21 @@ jobs:
           echo "=== 检查最终打包好的文件及校验码 ==="
           ls -la final-release/
 
-      # ----------------------------------------------------
-      # 新增：为所有生成的压缩包生成官方构建来历证明（Artifact Attestations）
-      # ----------------------------------------------------
+          # 提取短 SHA 供后续动态 Tag 使用
+          echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
       - name: Generate Artifact Attestations
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: 'final-release/*'
 
-      - name: Create or Update GitHub Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
           files: final-release/*
-          tag_name: latest
-          name: "Latest Development Build"
-          body: "自动构建的最新开发版，每次推送代码后自动更新（内含 SHA512 校验文件与 GitHub 官方安全签名认证）。"
+          tag_name: "nightly-${{ env.SHORT_SHA }}"
+          name: "Nightly Build (${{ env.SHORT_SHA }})"
+          body: "自动构建的最新开发版，本版本包含 GitHub 官方安全签名认证 (Artifact Attestations)。"
           prerelease: true
-          remove_files_with_matching_pattern: true
+          # 加上 overwrite_files，允许在同一 Release 内覆盖同名文件（如果后续有需要）
+          overwrite_files: true
