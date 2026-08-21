@@ -1,5 +1,11 @@
 name: CI
-on: [pull_request, push]
+
+# 修改触发条件：当推送形如 v1.0.0 的标签时触发
+on:
+  push:
+  - tags:
+    - 'v*'
+
 env:
   DEF_CFLAGS: -O2 -g -Wall -Werror
 
@@ -20,7 +26,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Need tags for tools/get-version-number.sh
+        fetch-depth: 0
     - uses: msys2/setup-msys2@v2
       with:
         msystem: ${{matrix.msystem}}
@@ -46,8 +52,9 @@ jobs:
       contents: write
       id-token: write
       attestations: write
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download all workflow artifacts
         uses: actions/download-artifact@v4
         with:
@@ -73,7 +80,6 @@ jobs:
           done
           cd ..
           
-          # 进入最终发布目录，计算所有文件的 sha512 并写入 sha512sums.txt
           cd final-release
           sha512sum * > sha512sums.txt
           cd ..
@@ -81,21 +87,15 @@ jobs:
           echo "=== 检查最终打包好的文件及校验码 ==="
           ls -la final-release/
 
-          # 提取短 SHA 供后续动态 Tag 使用
-          echo "SHORT_SHA=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-
+      # 1. 先生成构建来历安全签名
       - name: Generate Artifact Attestations
         uses: actions/attest-build-provenance@v1
         with:
           subject-path: 'final-release/*'
 
-      - name: Create GitHub Release
+      # 2. 上传打包文件到对应的 GitHub Release 中
+      - name: Upload Release Assets
         uses: softprops/action-gh-release@v3
         with:
           files: final-release/*
-          tag_name: "nightly-${{ env.SHORT_SHA }}"
-          name: "Nightly Build (${{ env.SHORT_SHA }})"
-          body: "自动构建的最新开发版，本版本包含 GitHub 官方安全签名认证 (Artifact Attestations)。"
           prerelease: true
-          # 加上 overwrite_files，允许在同一 Release 内覆盖同名文件（如果后续有需要）
-          overwrite_files: true
